@@ -9,7 +9,7 @@ mut:
 	num_loops int
 }
 
-pub fn new(int max_fd) &Pevo {
+pub fn new(max_fd int) &Pevo {
 	return &Pevo{
 		fds: []FileDescriptor{len: max_fd}
 		max_fd: max_fd
@@ -17,7 +17,7 @@ pub fn new(int max_fd) &Pevo {
 }
 
 pub fn (mut p Pevo) set_timeout(mut loop Loop, fd int, secs int) {
-	vi := fd / short_bits
+	vi := fd / int(short_bits)
 	if p.fds[fd].timeout_idx != timeout_idx_unused {
 		loop.timeout[p.fds[fd].timeout_idx].vec[vi] &= ~(u16(C.SHRT_MIN) >> (fd % short_bits))
 		if loop.timeout[p.fds[fd].timeout_idx].vec[vi] == 0 {
