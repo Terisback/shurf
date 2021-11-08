@@ -1,3 +1,3 @@
 module shurf
 
-pub type Handler = fn (ctx Context) ?
+pub type Handler<U> = fn (ctx Context<U>) ?

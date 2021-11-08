@@ -1,0 +1,4 @@
+module shurf
+
+struct Pool {
+}

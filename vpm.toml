@@ -1,0 +1,6 @@
+[package]
+name = "shurf"
+author = "Anton Terisback <terisbackno@gmail.com>"
+description = "💨 Pretty fast web framework written in V"
+license = "MIT"
+version = "0.1.0"
