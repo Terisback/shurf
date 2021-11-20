@@ -3,10 +3,22 @@ module shurf
 import net.http
 import utils
 
-enum DynamicSegmentType {
-	named
-	plus
-	wildcard
+[noinit]
+pub struct ErrDoubleDynamicSegment {
+pub:
+	msg  string = 'two dynamic segments in row'
+	code int
+}
+
+pub struct Route {
+	parser RouteParser
+pub:
+	method http.Method
+	// Raw route path
+	path string
+	// Param names of route
+	params   []string
+	handlers []Handler
 }
 
 // Dynamic route segment, it can be either a normal parameter or a wildcard.
@@ -19,11 +31,113 @@ pub:
 type RouteSegment = DynamicSegment | string
 
 struct RouteParser {
-	segments []RouteSegment
+	plus_idx     int = 1
+	wildcard_idx int = 1
+	segments     []RouteSegment
 }
 
-fn parse_route(pattern string) RouteParser {
-	return RouteParser{}
+[direct_array_access]
+fn parse_route(pattern string) ?RouteParser {
+	if pattern.len == 0 {
+		return RouteParser{
+			segments: [RouteSegment('/')]
+		}
+	}
+
+	mut segment := []byte{}
+	mut plus_idx := 1
+	mut wildcard_idx := 1
+	mut segments := []RouteSegment{}
+
+	if pattern[0] != `/` {
+		segment << `/`
+	}
+
+	for i := 0; i <= pattern.len; i++ {
+		character := pattern[i]
+
+		if character !in [`\\`, `:`, `*`, `+`] {
+			segment << character
+			continue
+		} else if character == `\\` {
+			if i < pattern.len - 1 && pattern[i + 1] in [`:`, `*`, `+`] {
+				segment << pattern[i + 1]
+				i++
+			} else {
+				segment << character
+			}
+			continue
+		}
+
+		if character == `:` && i == pattern.len - 1 {
+			segment << character
+		}
+
+		if segment.len > 0 {
+			segments << segment.bytestr()
+			segment.clear()
+		}
+
+		match character {
+			`:` {
+				mut peek := i + 1
+				mut optional := false
+				for ; peek < pattern.len; peek++ {
+					if pattern[peek] == `?` {
+						optional = true
+						break
+					}
+
+					if pattern[peek] in [`/`, `-`, `.`] {
+						break
+					}
+				}
+
+				segments << DynamicSegment{
+					name: pattern[i + 1..peek]
+					optional: optional
+				}
+
+				i = peek - 1
+				if optional {
+					i++
+				}
+			}
+			`*` {
+				if segments.len > 0 && segments.last() is DynamicSegment {
+					return IError(ErrDoubleDynamicSegment{})
+				}
+
+				segments << DynamicSegment{
+					name: '*' + wildcard_idx.str()
+					optional: true
+				}
+				wildcard_idx++
+			}
+			`+` {
+				if segments.len > 0 && segments.last() is DynamicSegment {
+					return IError(ErrDoubleDynamicSegment{})
+				}
+
+				segments << DynamicSegment{
+					name: '+' + plus_idx.str()
+					optional: false
+				}
+				plus_idx++
+			}
+			else {
+				panic('unreachable')
+			}
+		}
+	}
+
+	segments << segment.bytestr()
+
+	return RouteParser{
+		plus_idx: plus_idx
+		wildcard_idx: wildcard_idx
+		segments: segments
+	}
 }
 
 // Parses the passed url and tries to match it against the route segments and determine params values.
@@ -81,7 +195,7 @@ fn (r RouteParser) matches(path string, params map[string]string) (string, map[s
 				if r.segments.len - 1 == i {
 					if segment.optional || path.len - path_idx > 0 {
 						route_params[segment.name] = path[path_idx..]
-						return '', merge_maps(params, route_params), true
+						return '', utils.merge_maps(params, route_params), true
 					}
 
 					return path, params, false
@@ -108,16 +222,5 @@ fn (r RouteParser) matches(path string, params map[string]string) (string, map[s
 		}
 	}
 
-	return path[path_idx..], merge_maps(params, route_params), true
-}
-
-pub struct Route {
-	parser RouteParser
-pub:
-	method http.Method
-	// Raw route path
-	path string
-	// Param names of route
-	params   []string
-	handlers []Handler
+	return path[path_idx..], utils.merge_maps(params, route_params), true
 }
