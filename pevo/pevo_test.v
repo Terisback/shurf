@@ -1,4 +1,8 @@
-// module main
+module pevo
+
+fn test_pevo() {
+	assert true
+}
 
 // import net
 // import pevo
