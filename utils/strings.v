@@ -1,13 +1,7 @@
 module utils
 
-[noinit]
-pub struct ErrOutOfBounds {
-	msg  string = 'out of bounds'
-	code int    = 1
-}
-
 // Comparison of the `left` string to the `right` with the `at` offset.
-// Does bounds checking of `at`, so it fails for you.
+// Does bounds checking of `at`, so it fails for you with ErrOutOfBounds.
 pub fn compare_at(left string, right string, at usize) ?bool {
 	// checking for bounds
 	if usize(left.len) < at + usize(right.len) {
@@ -51,4 +45,26 @@ pub fn secure_compare(internal string, outside string) bool {
 	}
 
 	return m == 0
+}
+
+// Works like string.split() but with splitset
+pub fn split_any(source string, splitset ...byte) []string {
+	// Do not provide zero length splitset, please :(
+	if splitset.len == 0 {
+		return source.split_nth('', 0)
+	}
+
+	mut prev_idx := 0
+	mut result := []string{}
+
+	for i, _ in source {
+		if source[i] in splitset {
+			result << source[prev_idx..i]
+			prev_idx = i + 1
+		}
+	}
+
+	result << source[prev_idx..]
+
+	return result
 }
