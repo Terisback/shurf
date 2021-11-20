@@ -11,12 +11,12 @@ pub const (
 	max_send_file_size = 2 * 1024 * 1024
 )
 
-pub struct Context<U> {
+pub struct Context {
 mut:
 	// workaround till we have req, res streams so we just close them
 	done bool
 	// userdata
-	userdata U
+	userdata voidptr
 	// For internal use
 	conn net.TcpConn
 	// Map containing query params for the route.
@@ -26,53 +26,52 @@ mut:
 	form map[string]string
 	// Files from multipart-form.
 	files map[string][]http.FileData
-	// Route
+	// Last matched route
 	route Route
 pub:
 	// HTTP Request
 	req http.Request
 pub mut:
-	// HTTP Response, it will be sended after handler execution.
-	// Feel free to change it yourself.
+	// HTTP Response
 	res http.Response
 }
 
 // Sets the response status.
-pub fn (mut ctx Context<U>) status(code http.Status) {
+pub fn (mut ctx Context) status(code http.Status) {
 	ctx.res.set_status(code)
 }
 
 // Sets the response content type to `mime_type`.
-pub fn (mut ctx Context<U>) content_type(mime_type string) {
+pub fn (mut ctx Context) content_type(mime_type string) {
 	ctx.res.header.set(.content_type, mime_type)
 }
 
 // Returns request body.
-pub fn (ctx Context<U>) body() string {
+pub fn (ctx Context) body() string {
 	return ctx.req.data
 }
 
 // Sets response body to `payload`.
-pub fn (mut ctx Context<U>) payload(payload string) {
+pub fn (mut ctx Context) payload(payload string) {
 	ctx.res.text = payload
 }
 
 // Sends html `payload` with status `code`.
-pub fn (mut ctx Context<U>) html(code http.Status, payload string) ? {
+pub fn (mut ctx Context) html(code http.Status, payload string) ? {
 	ctx.content_type('text/html')
 	ctx.payload(payload)
 	ctx.send_response() ?
 }
 
 // Sends text `payload` with status `code`.
-pub fn (mut ctx Context<U>) text(code http.Status, payload string) ? {
+pub fn (mut ctx Context) text(code http.Status, payload string) ? {
 	ctx.content_type('text/plain')
 	ctx.payload(payload)
 	ctx.send_response() ?
 }
 
 // Sends json `payload` with status `code`.
-pub fn (mut ctx Context<U>) json(code http.Status, payload string) ? {
+pub fn (mut ctx Context) json(code http.Status, payload string) ? {
 	ctx.content_type('application/json')
 	ctx.payload(payload)
 	ctx.send_response() ?
@@ -80,14 +79,14 @@ pub fn (mut ctx Context<U>) json(code http.Status, payload string) ? {
 
 // Redirect client to `url`.
 // Sets status to 302 (.found) and adds `location` to header.
-pub fn (mut ctx Context<U>) redirect(url string) ? {
+pub fn (mut ctx Context) redirect(url string) ? {
 	ctx.status(.found)
 	ctx.res.header.add(.location, url)
 	ctx.send_response() ?
 }
 
 // Returns the ip address from the current client.
-pub fn (ctx Context<U>) ip() string {
+pub fn (ctx Context) ip() string {
 	mut ip := ctx.req.header.get(.x_forwarded_for) or { '' }
 
 	if ip == '' {
@@ -106,16 +105,16 @@ pub fn (ctx Context<U>) ip() string {
 }
 
 // Gets a cookie from request by a key.
-pub fn (ctx Context<U>) cookies(key string) ?string {
+pub fn (ctx Context) cookies(key string) ?string {
 	return ctx.req.cookies[key] or { return error('cookie not found') }
 }
 
 // Sets response cookie.
-pub fn (mut ctx Context<U>) cookie(cookie http.Cookie) {
+pub fn (mut ctx Context) cookie(cookie http.Cookie) {
 	ctx.res.header.add(.set_cookie, cookie.str())
 }
 
-pub fn (mut ctx Context<U>) send_file(file string) ? {
+pub fn (mut ctx Context) send_file(file string) ? {
 	path := os.real_path(file)
 
 	if !os.is_file(path) && os.is_dir(path) {
@@ -126,7 +125,7 @@ pub fn (mut ctx Context<U>) send_file(file string) ? {
 		return error('send_file(`$path`): unable to read file')
 	}
 
-	if os.file_size(path) >= shurf.max_send_file_size {
+	if os.file_size(path) >= max_send_file_size {
 		return error("send_file(`$path`): file size is limited to 2MB because lack of streams, PR's are welcome")
 	}
 
@@ -139,7 +138,7 @@ pub fn (mut ctx Context<U>) send_file(file string) ? {
 }
 
 // workaround till we have req, res streams so we just close them
-fn (mut ctx Context<U>) mark_as_done() ? {
+fn (mut ctx Context) mark_as_done() ? {
 	if ctx.done {
 		return error('already done')
 	}
@@ -147,7 +146,7 @@ fn (mut ctx Context<U>) mark_as_done() ? {
 }
 
 // workaround till we have req, res streams so we just close them
-fn (mut ctx Context<U>) send_response() ? {
+fn (mut ctx Context) send_response() ? {
 	ctx.mark_as_done() or { return error('unable to send, response already sended') }
 
 	ctx.res.header.set(.content_length, ctx.res.text.len.str())
